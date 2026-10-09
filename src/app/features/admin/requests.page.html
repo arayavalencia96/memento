@@ -1,0 +1,107 @@
+<app-admin-layout
+  ><p class="eyebrow">Vos decidís quién entra</p>
+  <h1 class="page-title mt-3">Solicitudes</h1>
+  <p class="muted mt-3">
+    Accesos, salidas y bajas de cuenta. Las novedades se cargan al abrir esta pantalla.
+  </p>
+  <div class="mt-8 flex gap-3">
+    <button
+      class="secondary"
+      (click)="filter.set('pending')"
+      [attr.aria-pressed]="filter() === 'pending'"
+    >
+      Pendientes · {{ pending().length }}</button
+    ><button
+      class="secondary"
+      (click)="filter.set('history')"
+      [attr.aria-pressed]="filter() === 'history'"
+    >
+      Historial
+    </button>
+  </div>
+  @if (error()) {
+    <p role="alert" class="mt-5 text-rose-600">{{ error() }}</p>
+  }
+  @if (loading()) {
+    <p role="status" class="muted mt-8">Cargando solicitudes…</p>
+  } @else if (!error() && !visible().length) {
+    <div class="empty-state mt-8">
+      <h2 class="text-lg font-medium">
+        {{ filter() === 'pending' ? 'Todo al día 😎' : 'Todavía no hay solicitudes resueltas' }}
+      </h2>
+      <p class="mt-2 text-sm">Acá aparecerán los pedidos de tus invitados.</p>
+    </div>
+  } @else {
+    <div class="mt-6 space-y-4">
+      @for (request of visible(); track request.id) {
+        <article class="panel">
+          <div class="flex flex-wrap justify-between gap-3">
+            <div>
+              <p class="eyebrow">{{ labels[request.kind] }}</p>
+              <h2 class="mt-2 text-lg font-semibold">{{ userName(request) }}</h2>
+              <p class="muted mt-1 break-all text-sm">{{ userEmail(request) }}</p>
+            </div>
+            <span class="secondary h-fit text-xs">{{ statuses[request.status] }}</span>
+          </div>
+          @if (request.kind !== 'delete_account') {
+            <p class="mt-4 text-sm">
+              Sala: <span class="font-medium">{{ roomName(request) }}</span>
+            </p>
+          }
+          <p class="muted mt-3 text-xs">
+            Solicitada el {{ request.created_at | date: 'dd/MM/yyyy HH:mm' }}
+            @if (request.decided_at) {
+              · Resuelta el {{ request.decided_at | date: 'dd/MM/yyyy HH:mm' }}
+            }
+          </p>
+          @if (request.status === 'pending' || request.status === 'processing') {
+            @if (request.kind === 'delete_account') {
+              <p class="muted mt-4 text-sm">
+                La baja elimina el perfil y sus accesos. Las fotos quedan sin identificar a su
+                autor.
+              </p>
+            }
+            <div class="mt-5 flex flex-wrap gap-3">
+              <button
+                class="primary"
+                [disabled]="
+                  busy() ||
+                  !request.user_id ||
+                  (request.kind !== 'delete_account' && !request.room_id)
+                "
+                (click)="decide(request, true)"
+              >
+                {{
+                  request.status === 'processing'
+                    ? 'Reintentar baja'
+                    : request.kind === 'delete_account'
+                      ? 'Aprobar baja'
+                      : 'Aprobar'
+                }}
+              </button>
+              @if (request.status === 'pending') {
+                <button class="secondary" [disabled]="busy()" (click)="decide(request, false)">
+                  Denegar
+                </button>
+              }
+            </div>
+          }
+        </article>
+      }
+    </div>
+  }
+  @if (deleting(); as request) {
+    <app-modal title="¿Eliminar esta cuenta?" [busy]="busy()" (closed)="deleting.set(null)"
+      ><p>
+        ¿Eliminar la cuenta de {{ userName(request) }}? Esta acción no se puede deshacer. Las fotos
+        compartidas permanecerán sin identificar a su autor.
+      </p>
+      <div class="modal-actions">
+        <button class="secondary" [disabled]="busy()" (click)="deleting.set(null)">Cancelar</button
+        ><button class="danger" [disabled]="busy()" (click)="decide(request, true)">
+          Confirmar baja
+        </button>
+      </div></app-modal
+    >
+  }
+</app-admin-layout>

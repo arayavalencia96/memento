@@ -1,0 +1,236 @@
+<app-header />
+<main class="page">
+  @if (auth.isAdmin() && incomplete().length) {
+    <section class="panel mb-6">
+      <h2 class="font-semibold">Cargas incompletas</h2>
+      <p class="muted mt-2 text-sm">
+        Estas cargas llevan más de una hora pendientes. Eliminarlas borra cualquier archivo asociado
+        y libera la reserva.
+      </p>
+      @for (item of incomplete(); track item.id) {
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <span class="muted text-sm">{{ item.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}</span
+          ><button
+            class="icon-button"
+            aria-label="Eliminar carga incompleta"
+            title="Eliminar carga incompleta"
+            [disabled]="busy()"
+            (click)="cleanupTarget.set(item)"
+          >
+            <app-icon name="trash" />
+          </button>
+        </div>
+      }
+    </section>
+  }
+  @if (cleanupTarget()) {
+    <app-modal
+      title="¿Eliminar esta carga incompleta?"
+      [busy]="busy()"
+      (closed)="cleanupTarget.set(null)"
+      ><p>Se borrará cualquier archivo asociado a esta carga y se liberará su espacio reservado.</p>
+      <div class="modal-actions">
+        <button class="secondary" [disabled]="busy()" (click)="cleanupTarget.set(null)">
+          Cancelar</button
+        ><button class="danger" [disabled]="busy()" (click)="cleanup()">Eliminar carga</button>
+      </div></app-modal
+    >
+  }
+  <a class="muted text-sm" [routerLink]="auth.isAdmin() ? '/admin/rooms' : '/rooms'"
+    >← Volver a las salas</a
+  >
+  @if (room(); as album) {
+    <div class="mt-7 flex items-center justify-between gap-4">
+      <div>
+        <p class="eyebrow">Recuerdos compartidos</p>
+        <h1 class="page-title mt-3">{{ album.name }}</h1>
+        <p class="muted mt-3">{{ album.description }}</p>
+      </div>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="Exportar copia del álbum"
+          title="Exportar copia del álbum"
+          [disabled]="busy() || backup.busy()"
+          (click)="exportBackup()"
+        >
+          <app-icon name="download" />
+        </button>
+        <button
+          class="icon-button"
+          aria-label="Agregar una foto"
+          title="Agregar una foto"
+          [disabled]="busy() || backup.busy()"
+          (click)="newPhoto()"
+        >
+          <app-icon name="plus" />
+        </button>
+      </div>
+    </div>
+    @if (backup.busy()) {
+      <p role="status" class="muted mt-4">{{ backup.progress() }}</p>
+    }
+  }
+  @if (error()) {
+    <p role="alert" class="mt-8 text-rose-600">{{ error() }}</p>
+  }
+  <div class="photo-grid mt-8">
+    @for (photo of photos(); track photo.id) {
+      <button
+        class="photo-tile"
+        [disabled]="busy()"
+        [attr.aria-label]="
+          'Abrir foto: ' + (photo.description || 'recuerdo de ' + photo.authorName)
+        "
+        (click)="view(photo)"
+      >
+        <img
+          [src]="photo.url"
+          [alt]="photo.description || 'Recuerdo compartido'"
+          loading="lazy"
+          (error)="renew(photo)"
+        />
+      </button>
+    }
+  </div>
+  @if (loading()) {
+    <p class="muted mt-8" role="status">Cargando recuerdos…</p>
+  } @else if (!error() && !photos().length) {
+    <div class="empty-state mt-8">
+      Este álbum está esperando su primer recuerdo. Agregá una foto con +.
+    </div>
+  }
+  @if (hasMore()) {
+    <button class="secondary mt-6" [disabled]="loading()" (click)="load(true)">
+      Ver más recuerdos
+    </button>
+  }
+  @if (selected(); as photo) {
+    <app-modal title="Un recuerdo para guardar" [busy]="busy()" (closed)="selected.set(null)"
+      ><img class="photo-view" [src]="photo.url" [alt]="photo.description || 'Foto del álbum'" />
+      <div class="mt-4 flex flex-wrap justify-end gap-2">
+        <button
+          class="icon-button"
+          aria-label="Información de la foto"
+          title="Información"
+          [attr.aria-pressed]="info()"
+          (click)="info.set(!info())"
+        >
+          <app-icon name="info" /></button
+        ><button
+          class="icon-button"
+          aria-label="Descargar foto"
+          title="Descargar"
+          [disabled]="busy()"
+          (click)="download(photo)"
+        >
+          <app-icon name="download" />
+        </button>
+        @if (photo.canEdit) {
+          <button
+            class="icon-button"
+            aria-label="Editar información"
+            title="Editar información"
+            [disabled]="busy()"
+            (click)="editPhoto(photo)"
+          >
+            <app-icon name="edit" /></button
+          ><button
+            class="icon-button"
+            aria-label="Eliminar foto"
+            title="Eliminar foto"
+            [disabled]="busy()"
+            (click)="deletePhoto(photo)"
+          >
+            <app-icon name="trash" />
+          </button>
+        }
+      </div>
+      @if (info()) {
+        <dl class="photo-info">
+          <dt>Agregada</dt>
+          <dd>{{ photo.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}</dd>
+          <dt>Por</dt>
+          <dd>{{ photo.uploadedBy ? photo.authorName : 'Cuenta eliminada' }}</dd>
+          @if (photo.description) {
+            <dt>Descripción/ Mensaje</dt>
+            <dd>{{ photo.description }}</dd>
+          }
+          @if (photo.people.length) {
+            <dt>Aparecen</dt>
+            <dd>{{ photo.people.join(', ') }}</dd>
+          }
+          @if (photo.location) {
+            <dt>Lugar</dt>
+            <dd>{{ photo.location }}</dd>
+          }
+        </dl>
+      }
+    </app-modal>
+  }
+  @if (uploading() || editing()) {
+    <app-modal
+      [title]="editing() ? 'Editar recuerdo' : 'Agregar un recuerdo'"
+      [busy]="busy()"
+      (closed)="uploading.set(false); editing.set(null)"
+      ><form class="form-stack" (ngSubmit)="save()">
+        @if (uploading()) {
+          <label
+            >Foto<input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              (change)="chooseFile($event)"
+              required
+              [disabled]="busy()"
+          /></label>
+          <p class="muted text-xs">JPG, PNG o WebP · Hasta 10 MB.</p>
+        }
+        <label
+          >Descripción/ Mensaje<textarea
+            name="description"
+            [(ngModel)]="description"
+            maxlength="1000"
+          ></textarea></label
+        ><label
+          >¿Quiénes aparecen?<input
+            name="people"
+            [(ngModel)]="people"
+            maxlength="1000"
+            placeholder="Axel, Agustina, Tomi…"
+        /></label>
+        <p class="muted text-xs">Separá los nombres con comas.</p>
+        <label
+          >Lugar<input
+            name="location"
+            [(ngModel)]="location"
+            maxlength="120"
+            placeholder="Mar del Plata, Bodega Arizu, Cataratas..."
+        /></label>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="secondary"
+            [disabled]="busy()"
+            (click)="uploading.set(false); editing.set(null)"
+          >
+            Cancelar</button
+          ><button class="primary" [disabled]="busy()">
+            {{ busy() ? 'Guardando…' : 'Guardar recuerdo' }}
+          </button>
+        </div>
+      </form></app-modal
+    >
+  }
+  @if (deleting()) {
+    <app-modal title="¿Eliminar este recuerdo?" [busy]="busy()" (closed)="deleting.set(null)"
+      ><p>
+        Se eliminará la foto del álbum y de su almacenamiento. Esta acción no se puede deshacer.
+      </p>
+      <div class="modal-actions">
+        <button class="secondary" [disabled]="busy()" (click)="deleting.set(null)">Cancelar</button
+        ><button class="danger" [disabled]="busy()" (click)="remove()">Eliminar foto</button>
+      </div></app-modal
+    >
+  }
+</main>

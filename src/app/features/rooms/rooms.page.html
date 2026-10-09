@@ -1,0 +1,93 @@
+<app-header />
+<main class="page">
+  <p class="eyebrow">Tus momentos, tu gente</p>
+  <h1 class="page-title mt-3">Hola, {{ firstName() }} 😎</h1>
+  <p class="muted mt-3">Cada sala, una historia que vale la pena guardar.</p>
+  <section class="panel mt-8">
+    <div class="flex flex-wrap items-center justify-between gap-5">
+      <div>
+        <h2 class="text-lg font-semibold">¿Te invitaron a una sala?</h2>
+        <p class="muted mt-2 text-sm">
+          Ingresá el código que te compartieron. El administrador aprobará tu acceso.
+        </p>
+      </div>
+      <form (ngSubmit)="requestAccess()" class="flex w-full gap-3 sm:w-auto">
+        <label class="min-w-0"
+          ><span class="sr-only">Código de seis dígitos</span
+          ><input
+            class="field"
+            name="code"
+            [(ngModel)]="roomCode"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="Código de 6 dígitos"
+            required /></label
+        ><button class="primary" [disabled]="requesting()">Solicitar</button>
+      </form>
+    </div>
+  </section>
+  @if (error()) {
+    <p role="alert" class="mt-5 text-rose-600">{{ error() }}</p>
+  }
+  <h2 class="mt-10 text-xl font-semibold">Mis salas</h2>
+  @if (loading()) {
+    <p role="status" class="muted mt-6">Cargando tus recuerdos…</p>
+  } @else {
+    <div class="room-grid mt-5">
+      @for (room of rooms(); track room.id) {
+        <article
+          class="room-card rounded-3xl border"
+          style="background: var(--surface); border-color: var(--line)"
+        >
+          <a [routerLink]="['/rooms', room.id]"
+            ><div class="room-cover"><app-icon name="photo" /></div>
+            <div class="room-body">
+              <h2>{{ room.name }}</h2>
+              <p class="muted mt-2 text-sm">
+                {{ room.description || 'Un espacio para los momentos que querés guardar.' }}
+              </p>
+            </div></a
+          >
+          <div class="flex items-center justify-between px-5 pb-5">
+            <span class="muted text-xs">{{
+              pendingLeave(room.id) ? 'Salida pendiente de aprobación' : 'Ver álbum'
+            }}</span
+            ><button
+              type="button"
+              class="icon-button"
+              title="Solicitar salir de esta sala"
+              aria-label="Solicitar salir de esta sala"
+              [disabled]="requesting() || pendingLeave(room.id)"
+              (click)="leaveRoom.set(room)"
+            >
+              <app-icon name="exit" />
+            </button>
+          </div>
+        </article>
+      } @empty {
+        <div class="empty-state col-span-full">
+          Tus salas aparecerán acá cuando se apruebe tu acceso.
+        </div>
+      }
+    </div>
+  }
+  @if (leaveRoom(); as room) {
+    <app-modal
+      title="¿Solicitar salir de esta sala?"
+      [busy]="requesting()"
+      (closed)="leaveRoom.set(null)"
+      ><p>
+        Vas a solicitar salir de «{{ room.name }}». Conservás el acceso hasta que el administrador
+        apruebe tu pedido.
+      </p>
+      <div class="modal-actions">
+        <button class="secondary" [disabled]="requesting()" (click)="leaveRoom.set(null)">
+          Cancelar</button
+        ><button class="primary" [disabled]="requesting()" (click)="requestLeave()">
+          Solicitar salida
+        </button>
+      </div></app-modal
+    >
+  }
+</main>
